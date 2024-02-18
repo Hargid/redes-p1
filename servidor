@@ -14,12 +14,7 @@ def sair(conexao):
 
 
 def dados_recebidos(conexao, dados):
-    if dados == "PING":
-	    # Responder corretamente à mensagem PING
-	    response = "PONG"
-	    # Enviar a resposta ao cliente
-	    send_msg(response)
-    elif dados == b'':
+    if dados == b'':
         return sair(conexao)
     print(conexao, dados)
 
