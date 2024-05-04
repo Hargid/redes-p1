@@ -3,6 +3,8 @@ import asyncio
 from tcp import Servidor
 import re
 
+#Variaveis Globais
+dadosResiduais = b''
 
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
@@ -14,22 +16,27 @@ def sair(conexao):
 
 
 def dados_recebidos(conexao, dados):
-    conexao.dados_residuais = b''
+    global dadosResiduais
+    
+    dados = dadosResiduais + dados
+    
     if dados == b'':
         return sair(conexao)
-    #Junte de dados residuais + dados novos
-    linhas = (conexao.dados_residuais + dados).split(b'\n')
-    #Processamento das linhas
-    for linha in linhas:
-    #CASOS:    
-        #PING
-        if linha.startswith(b'PING'):
-            partes = linha.split(b' ',1)
-            if len(partes) > 1:
-            	conexao.enviar(b':server PONG server :' + partes[1] + b'\n')
-            else:
-                conexao.enviar(b':server PONG server :\n')
-    #conexao.dados_residuais=b''
+    
+    comandos = dados.split(b'\n') # Lista de Comandos detectados (separados por \n)
+    
+    if dados.endswith(b'\n') # Limpa o Buffer de dados residuais
+        dadosResiduais = b''
+    else #Dados Residuais guarda o último comando não completo
+        dadosResiduais = comandos[len(comandos)-1]
+    
+    for i in range(len(comandos)-1): # Varre cada comando recebido, excluindo o último (não completo - cuja parte recebida foi armazenada em "dadosResiduais"
+        if comandos.startswith(b'PING'): #PING
+            conexao.enviar(b':server PONG server :' + comandos[i].split(b' ', 1)[1] + b'\n')
+        
+
+    
+        
     print(conexao, dados)
 
 
