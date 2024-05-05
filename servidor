@@ -3,15 +3,10 @@ import asyncio
 from tcp import Servidor
 import re
 
-<<<<<<< HEAD
 #Variaveis Globais: dados residuais, lista de nicks, 
 dadosResiduais = b''
 nicksExistentes = {}
 
-=======
-#Variaveis Globais
-dadosResiduais = b''
->>>>>>> 04c4147e308b0575b70de739a58b6e0614505804
 
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
@@ -24,7 +19,6 @@ def sair(conexao):
 
 def dados_recebidos(conexao, dados):
     global dadosResiduais
-<<<<<<< HEAD
     global nicksExistentes
 
     dados = dadosResiduais + dados
@@ -95,28 +89,6 @@ def dados_recebidos(conexao, dados):
                 conexao.enviar(b':server 432 ' + _nick + b' ' + checkNick + b' :Erroneous nickname\r\n')
                                
 
-=======
-    
-    dados = dadosResiduais + dados
-    
-    if dados == b'':
-        return sair(conexao)
-    
-    comandos = dados.split(b'\n') # Lista de Comandos detectados (separados por \n)
-    
-    if dados.endswith(b'\n') # Limpa o Buffer de dados residuais
-        dadosResiduais = b''
-    else #Dados Residuais guarda o último comando não completo
-        dadosResiduais = comandos[len(comandos)-1]
-    
-    for i in range(len(comandos)-1): # Varre cada comando recebido, excluindo o último (não completo - cuja parte recebida foi armazenada em "dadosResiduais"
-        if comandos.startswith(b'PING'): #PING
-            conexao.enviar(b':server PONG server :' + comandos[i].split(b' ', 1)[1] + b'\n')
-        
-
-    
-        
->>>>>>> 04c4147e308b0575b70de739a58b6e0614505804
     print(conexao, dados)
 
 
