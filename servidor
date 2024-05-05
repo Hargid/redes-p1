@@ -90,7 +90,7 @@ def dados_recebidos(conexao, dados):
                 #Mensagem do protocolo para nick invalido
                 conexao.enviar(b':server 432 ' + _nick + b' ' + checkNick + b' :Erroneous nickname\r\n')
 
-        #PRIVMSG
+        #PRIVMSG (Passo 5 e 6)
         if comandos[i].startswith(b'PRIVMSG '):
             #Usuario com NICK1 envia mensagem para usuario com NICK2
             _nick1 = nicksExistentes[conexao]
@@ -138,11 +138,36 @@ def dados_recebidos(conexao, dados):
                 else:
                     canaisAtivos[nomeCanal].append(conexao)
                 #Mensagens do Protocolo de Entrada em Canais
-                print(b'canais ativos: ', canaisAtivos)
                 for _usuario in canaisAtivos[nomeCanal]:
                     _usuario.enviar(b':' + nicksExistentes[conexao] + b' JOIN :#' + nomeCanal + b'\r\n')
                 
             #Nome do canal invalido
+            else:
+                conexao.enviar(b':server 403 ' + nomeCanal + b':No such channel\r\n')
+
+        #PART (saida de canais) (Passo 7)
+        if comandos[i].startswith(b'PART #'):
+            nomeCanal = comandos[i].split(b'#',1)[1]
+            nomeCanal = nomeCanal.split(b'\r',1)[0]
+            nomeCanal = nomeCanal.split(b' ',1)[0]
+            #Valida nome do canal
+            if validar_nome(nomeCanal):
+                canalExiste = False
+                #Busca canal
+                for buscaCanal in canaisAtivos:
+                    #Canal Encontrado
+                    if buscaCanal.lower() == nomeCanal.lower():
+                        #canalExiste = True
+                        #Verifica se o usuario esta no canal.
+                        if conexao in canaisAtivos[nomeCanal]:
+                            for _usuario in canaisAtivos[nomeCanal]:
+                                #Notifica toedos os usuarios do canal da saida do usuario (inclusive o mesmo)
+                                _usuario.enviar(b':' + nicksExistentes[conexao] + b' PART #' + nomeCanal + b'\r\n')
+                            #Desconecta o usuario do canal
+                            canaisAtivos[nomeCanal].remove(conexao)
+                    #Canal nao encontrado - Tratar futuramente se necessario
+                    #Else
+            #Nome de canal invalido
             else:
                 conexao.enviar(b':server 403 ' + nomeCanal + b':No such channel\r\n')
 
