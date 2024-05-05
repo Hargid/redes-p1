@@ -3,6 +3,10 @@ import asyncio
 from tcp import Servidor
 import re
 
+#Variaveis Globais: dados residuais, lista de nicks, 
+dadosResiduais = b''
+nicksExistentes = {}
+
 
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
@@ -14,22 +18,77 @@ def sair(conexao):
 
 
 def dados_recebidos(conexao, dados):
-    conexao.dados_residuais = b''
+    global dadosResiduais
+    global nicksExistentes
+
+    dados = dadosResiduais + dados
+
     if dados == b'':
         return sair(conexao)
-    #Junte de dados residuais + dados novos
-    linhas = (conexao.dados_residuais + dados).split(b'\n')
-    #Processamento das linhas
-    for linha in linhas:
-    #CASOS:    
+
+    # Lista de Comandos detectados (separados por \n)
+    comandos = dados.split(b'\n') 
+
+    # Limpa o Buffer de dados residuais
+    if dados.endswith(b'\n'): 
+        dadosResiduais = b''
+
+    #Dados Residuais guarda o último comando não completo
+    else: 
+        dadosResiduais = comandos[len(comandos)-1]
+
+    # Varre cada comando recebido, excluindo o último (não completo - cuja parte recebida foi armazenada em "dadosResiduais"
+    for i in range(len(comandos)-1):
         #PING
-        if linha.startswith(b'PING'):
-            partes = linha.split(b' ',1)
-            if len(partes) > 1:
-            	conexao.enviar(b':server PONG server :' + partes[1] + b'\n')
+        if comandos[i].startswith(b'PING '):
+            conexao.enviar(b':server PONG server :' + comandos[i].split(b' ', 1)[1] + b'\n')
+
+        #NICK
+        if comandos[i].startswith(b'NICK '):
+            checkNick = comandos[i].split(b' ',1)[1]
+            checkNick = checkNick.split(b'\r',1)[0]
+            #Conexao nova
+            if conexao not in nicksExistentes.keys():
+                #Caso esteja definiindo o nick inicial
+                if conexao not in nicksExistentes.keys():
+                    _nick = b'*'
+                    defNick = True
+                #Redefinindo/Alterando nick
+                else:
+                    _nick = nicksExistentes[conexao]
+                    nickAnterior = _nick
+                    defNick = False
+            #Reconexao
             else:
-                conexao.enviar(b':server PONG server :\n')
-    #conexao.dados_residuais=b''
+                _nick = nicksExistentes[conexao]
+                nickAnterior = _nick
+                defNick = False
+            
+            #Verifica se o nick é valido
+            if validar_nome(checkNick):
+                #Caso o nick esteja disponivel
+                if checkNick.lower() not in [nicks.lower() for nicks in nicksExistentes.values()]:
+                    #Nick validado e disponivel
+                    _nick = checkNick
+                    nicksExistentes[conexao] = _nick
+                    #Mensagem de protocolo para primeiro nick
+                    if defNick:
+                        #Mensagens do protocolo de sucesso na atribuição de nick inicial
+                        conexao.enviar(b':server 001 ' + checkNick + b' :Welcome\r\n')
+                        conexao.enviar(b':server 422 ' + checkNick + b' :MOTD File is missing\r\n')
+                    #Mensagem de protocolo para alteracao de nick
+                    else:
+                        conexao.enviar(b':' + nickAnterior + b' NICK ' + _nick + b'\r\n')
+
+                #Nick não disponivel
+                else:
+                    conexao.enviar(b':server 433 ' + _nick + b' ' + checkNick + b' :Nickname is already in use\r\n')
+            #Nick invalido
+            else:
+                #Mensagem do protocolo para nick invalido
+                conexao.enviar(b':server 432 ' + _nick + b' ' + checkNick + b' :Erroneous nickname\r\n')
+                               
+
     print(conexao, dados)
 
 
