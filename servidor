@@ -6,6 +6,7 @@ import re
 #Variaveis Globais: dados residuais, lista de nicks, 
 dadosResiduais = b''
 nicksExistentes = {}
+canaisAtivos = {}
 
 
 def validar_nome(nome):
@@ -20,16 +21,17 @@ def sair(conexao):
 def dados_recebidos(conexao, dados):
     global dadosResiduais
     global nicksExistentes
+    global canaisAtivos
 
     dados = dadosResiduais + dados
 
     if dados == b'':
         return sair(conexao)
 
-    # Lista de Comandos detectados (separados por \n)
+    #Lista de Comandos detectados (separados por \n)
     comandos = dados.split(b'\n') 
 
-    # Limpa o Buffer de dados residuais
+    #Limpa o Buffer de dados residuais
     if dados.endswith(b'\n'): 
         dadosResiduais = b''
 
@@ -37,7 +39,7 @@ def dados_recebidos(conexao, dados):
     else: 
         dadosResiduais = comandos[len(comandos)-1]
 
-    # Varre cada comando recebido, excluindo o último (não completo - cuja parte recebida foi armazenada em "dadosResiduais"
+    #Varre cada comando recebido, excluindo o último (não completo - cuja parte recebida foi armazenada em "dadosResiduais"
     for i in range(len(comandos)-1):
         #PING
         if comandos[i].startswith(b'PING '):
@@ -95,14 +97,54 @@ def dados_recebidos(conexao, dados):
             _nick2 = comandos[i].split(b' ')[1]
             _msg = comandos[i].split(b':')[1]
             
-            #Busca o usuario com NICK2 na lista de nicks 
-            for _chave, _valor in nicksExistentes.items():
-                #Usuario com NICK2 encontrado na lista de nicks
-                if _valor.lower() == _nick2.lower():
-                    _chave.enviar(b':' + _nick1 + b' PRIVMSG ' + _nick2 + b' :' + _msg + b'\n')
+            #Mensagem Direta - NICK2 é um usuario
+            if not _nick2.startswith(b'#'):
+                #Busca o usuario com NICK2 na lista de nicks 
+                for _chave, _valor in nicksExistentes.items():
+                    #Usuario com NICK2 encontrado na lista de nicks
+                    if _valor.lower() == _nick2.lower():
+                        _chave.enviar(b':' + _nick1 + b' PRIVMSG ' + _nick2 + b' :' + _msg + b'\n')
                 
-                #Caso ignorado = usuário com NICK2 não encontrado
-                #else:
+                    #Caso ignorado = usuário com NICK2 não encontrado
+                    #else:
+            #Mensagem para um Canal (Passo 6)
+            else:
+                _nick2 = _nick2.split(b'#',1)[1]
+                _nick2 = _nick2.split(b' ',1)[0]
+                for buscaCanal in canaisAtivos:
+                    if (buscaCanal.lower() == _nick2.lower()):
+                        for _usuario in canaisAtivos[buscaCanal]:
+                            if _usuario != conexao:
+                                _usuario.enviar(b':' + nicksExistentes[conexao] + b' PRIVMSG #' + _nick2 + b' :' + _msg + b'\n')
+                        
+
+        #JOIN (canais)
+        if comandos[i].startswith(b'JOIN #'):
+            nomeCanal = comandos[i].split(b'#',1)[1]
+            nomeCanal = nomeCanal.split(b'\r',1)[0]
+            #Verificar se o canal tem um nome valido
+            if validar_nome(nomeCanal):
+                #Busca canal
+                canalExiste = False
+                for buscaCanal in canaisAtivos.keys():
+                    if buscaCanal.lower() == nomeCanal.lower():
+                        canalExiste = True
+                #Canal nao existe
+                if not canalExiste:
+                    #Cria canal e insere o usuario
+                    canaisAtivos[nomeCanal]=[]
+                    canaisAtivos[nomeCanal].append(conexao)
+                #Canal existe
+                else:
+                    canaisAtivos[nomeCanal].append(conexao)
+                #Mensagens do Protocolo de Entrada em Canais
+                print(b'canais ativos: ', canaisAtivos)
+                for _usuario in canaisAtivos[nomeCanal]:
+                    _usuario.enviar(b':' + nicksExistentes[conexao] + b' JOIN :#' + nomeCanal + b'\r\n')
+                
+            #Nome do canal invalido
+            else:
+                conexao.enviar(b':server 403 ' + nomeCanal + b':No such channel\r\n')
 
     print(conexao, dados)
 
@@ -110,7 +152,6 @@ def dados_recebidos(conexao, dados):
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
     conexao.registrar_recebedor(dados_recebidos)
-
 
 servidor = Servidor(6667)
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)
